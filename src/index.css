@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface-muted text-ink font-body antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-ink;
+  }
+
+  :focus-visible {
+    outline: 2px solid #1e4b8f;
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-blueprint-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blueprint-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blueprint-500;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-surface-border bg-white px-5 py-2.5 text-sm font-semibold text-ink transition-colors hover:border-blueprint-400 hover:text-blueprint-600;
+  }
+
+  .card {
+    @apply rounded-lg border border-surface-border bg-white p-6 shadow-card;
+  }
+
+  .eyebrow {
+    @apply font-mono text-xs uppercase tracking-widest text-blueprint-500;
+  }
+}
