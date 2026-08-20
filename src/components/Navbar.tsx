@@ -31,12 +31,13 @@ export function Navbar() {
           className="flex items-center gap-2 font-display text-lg font-bold text-ink"
           onClick={() => setIsOpen(false)}
         >
-          <span
-            className="flex h-8 w-8 items-center justify-center rounded-md bg-blueprint-500 text-sm font-bold text-white"
-            aria-hidden="true"
-          >
-            JT
-          </span>
+          <img
+            src="/logo-navbar.png"
+            alt=""
+            width={32}
+            height={32}
+            className="h-8 w-8 rounded-md object-cover"
+          />
           Job Application Toolkit
         </NavLink>
 

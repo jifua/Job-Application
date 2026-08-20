@@ -1,6 +1,8 @@
 import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { matchCvToJob } from "../utils/skillMatcher";
-import { extractTextFromFile } from "../utils/fileReader";
+import { extractTextFromFiles } from "../utils/fileReader";
+import { generateTailoredCv } from "../utils/cvTailor";
+import { analyzeJobDescription } from "../utils/jobAnalyzer";
 import type { CvMatchResult } from "../types/cv";
 import { Badge } from "../components/Badge";
 import { MatchGauge } from "../components/MatchGauge";
@@ -58,27 +60,41 @@ export function CVMatcher() {
   const [jdText, setJdText] = useState("");
   const [cvFileName, setCvFileName] = useState<string | null>(null);
   const [isParsingFile, setIsParsingFile] = useState(false);
+  const [parseProgress, setParseProgress] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [result, setResult] = useState<CvMatchResult | null>(null);
+  const [targetPosition, setTargetPosition] = useState("");
+  const [tailoredCv, setTailoredCv] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "failed">("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
 
     setIsParsingFile(true);
     setFileError(null);
+    setParseProgress(files.length > 1 ? "Reading files…" : "Reading file…");
 
     try {
-      const text = await extractTextFromFile(file);
+      const { text, skippedCount } = await extractTextFromFiles(files, (current, total, message) => {
+        setParseProgress(total > 1 ? `File ${current} of ${total}: ${message}` : message);
+      });
       setCvText(text);
-      setCvFileName(file.name);
+      setCvFileName(
+        files.length === 1
+          ? files[0].name
+          : `${files.length - skippedCount} file${files.length - skippedCount === 1 ? "" : "s"}${
+              skippedCount > 0 ? ` (${skippedCount} skipped — max 6 at a time)` : ""
+            }`
+      );
     } catch (err) {
       setFileError(err instanceof Error ? err.message : "We couldn't read that file.");
       setCvFileName(null);
     } finally {
       setIsParsingFile(false);
+      setParseProgress(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -104,6 +120,46 @@ export function CVMatcher() {
 
     setFormError(null);
     setResult(matchCvToJob(cvText, jdText));
+    const jdAnalysis = analyzeJobDescription(jdText);
+    setTargetPosition(jdAnalysis.position.detected ? jdAnalysis.position.value : "");
+    setTailoredCv("");
+    setCopyStatus("idle");
+  }
+
+  function handleGenerateTailoredCv() {
+    if (!result) return;
+    setTailoredCv(
+      generateTailoredCv({
+        cvText,
+        targetPosition,
+        matchedSkills: result.matchedSkills,
+        missingSkills: result.missingSkills,
+        additionalCvSkills: result.additionalCvSkills,
+      })
+    );
+    setCopyStatus("idle");
+  }
+
+  async function handleCopyTailoredCv() {
+    try {
+      await navigator.clipboard.writeText(tailoredCv);
+      setCopyStatus("copied");
+      setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch {
+      setCopyStatus("failed");
+    }
+  }
+
+  function handleDownloadTailoredCv() {
+    const blob = new Blob([tailoredCv], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "tailored-cv-draft.txt";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
   }
 
   function handleUseSample() {
@@ -113,6 +169,7 @@ export function CVMatcher() {
     setFormError(null);
     setFileError(null);
     setResult(null);
+    setTailoredCv("");
   }
 
   function handleClear() {
@@ -122,6 +179,7 @@ export function CVMatcher() {
     setFormError(null);
     setFileError(null);
     setResult(null);
+    setTailoredCv("");
   }
 
   return (
@@ -142,19 +200,22 @@ export function CVMatcher() {
                 Your CV
               </label>
               <label className="cursor-pointer text-sm font-medium text-blueprint-600 hover:underline">
-                Upload PDF/TXT
+                Upload PDF/TXT/Screenshot(s)
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept=".pdf,.txt,application/pdf,text/plain"
+                  accept=".pdf,.txt,image/*,application/pdf,text/plain"
+                  multiple
                   onChange={handleFileChange}
                   className="sr-only"
-                  aria-label="Upload CV as PDF or TXT"
+                  aria-label="Upload CV as PDF, TXT, or one or more screenshots"
                 />
               </label>
             </div>
 
-            {isParsingFile && <p className="mt-1 text-xs text-blueprint-600">Reading file…</p>}
+            {isParsingFile && (
+              <p className="mt-1 text-xs text-blueprint-600">{parseProgress ?? "Reading file…"}</p>
+            )}
             {cvFileName && !isParsingFile && (
               <p className="mt-1 text-xs text-ink-soft">Loaded from: {cvFileName}</p>
             )}
@@ -171,7 +232,7 @@ export function CVMatcher() {
                 setCvText(e.target.value);
                 setCvFileName(null);
               }}
-              placeholder="Paste your CV text here, or upload a PDF/TXT file above..."
+              placeholder="Paste your CV text here, or upload a PDF/TXT/screenshot above..."
               rows={10}
               className="mt-2 w-full resize-y rounded-md border border-surface-border p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-blueprint-400 focus:outline-none"
             />
@@ -306,6 +367,55 @@ export function CVMatcher() {
                   </div>
                 </div>
               )}
+
+              <div className="card">
+                <p className="eyebrow mb-2">Tailored CV draft</p>
+                <p className="mb-3 text-sm text-ink-soft">
+                  Generates a version of your CV with a job-focused summary on top and your
+                  skills reordered to put what this job asks for first. It does{" "}
+                  <strong>not</strong> rewrite your work experience — that needs your judgment,
+                  not a template. Review it before using it.
+                </p>
+
+                {!tailoredCv ? (
+                  <button type="button" onClick={handleGenerateTailoredCv} className="btn-primary">
+                    Generate tailored CV draft
+                  </button>
+                ) : (
+                  <>
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCopyTailoredCv}
+                        className="btn-secondary !px-3 !py-1.5 text-xs"
+                      >
+                        {copyStatus === "copied" ? "Copied!" : copyStatus === "failed" ? "Copy failed" : "Copy"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleDownloadTailoredCv}
+                        className="btn-secondary !px-3 !py-1.5 text-xs"
+                      >
+                        Download .txt
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleGenerateTailoredCv}
+                        className="!px-3 !py-1.5 text-xs font-medium text-ink-soft hover:text-blueprint-600"
+                      >
+                        Regenerate
+                      </button>
+                    </div>
+                    <textarea
+                      value={tailoredCv}
+                      onChange={(e) => setTailoredCv(e.target.value)}
+                      rows={16}
+                      className="w-full resize-y rounded-md border border-surface-border p-3 font-mono text-xs leading-relaxed text-ink focus:border-blueprint-400 focus:outline-none"
+                      aria-label="Tailored CV draft, editable"
+                    />
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>

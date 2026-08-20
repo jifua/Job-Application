@@ -1,4 +1,5 @@
 import type { CoverLetterInput } from "../types/coverLetter";
+import { joinWithAnd } from "./textList";
 
 /**
  * Splits a comma-separated skills string into a clean list, trims each
@@ -18,13 +19,6 @@ export function parseSkillsInput(raw: string): string[] {
     if (result.length >= 8) break;
   }
   return result;
-}
-
-function joinSkills(skills: string[]): string {
-  if (skills.length === 0) return "";
-  if (skills.length === 1) return skills[0];
-  if (skills.length === 2) return `${skills[0]} and ${skills[1]}`;
-  return `${skills.slice(0, -1).join(", ")}, and ${skills[skills.length - 1]}`;
 }
 
 /** Ensures user-provided free text reads as a sentence fragment: lowercase first letter isn't forced, just trims and drops a trailing period so it fits mid-sentence. */
@@ -104,7 +98,7 @@ export function generateCoverLetter(input: CoverLetterInput, variantIndex = 0): 
   if (skills.length > 0) {
     paragraphs.push(
       "",
-      `My background includes hands-on experience with ${joinSkills(skills)}, which I believe lines up well with what you're looking for in this role.`
+      `My background includes hands-on experience with ${joinWithAnd(skills)}, which I believe lines up well with what you're looking for in this role.`
     );
   }
 

@@ -22,6 +22,12 @@ export function About() {
           No CV or job description content is sent to third-party AI APIs by this toolkit.
         </p>
         <p>
+          Screenshot uploads (for the Job Description Analyzer or CV Matcher) are read using
+          on-device text recognition — the image itself is never uploaded anywhere. The first
+          time you use this feature, your browser downloads the recognition engine from a public
+          library CDN (not this app's server); after that it's cached locally.
+        </p>
+        <p>
           You can clear your locally saved tracker data at any time from the Tracker page, or
           back it up first using <strong>Export Data</strong> (downloads a JSON file you can
           re-import later or on another device via <strong>Import Data</strong>). Clearing your

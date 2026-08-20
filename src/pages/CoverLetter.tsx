@@ -291,6 +291,7 @@ export function CoverLetter() {
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 rows={18}
+                aria-label="Generated cover letter draft, editable"
                 className="mt-2 w-full flex-1 resize-y rounded-md border border-surface-border p-3 font-body text-sm text-ink focus:border-blueprint-400 focus:outline-none"
               />
               <p className="mt-2 text-xs text-ink-soft">

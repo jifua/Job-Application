@@ -6,16 +6,17 @@ A free, privacy-friendly web app that helps jobseekers analyze job descriptions,
 CV against a role, draft cover letters, practice interviews, and track applications — without
 needing an account, a server, or a paid API.
 
-> **Status:** Phase 6 — all five tools are functional: Home, Job Description Analyzer, CV
-> Matcher, Cover Letter Generator, Interview Practice, and Application Tracker. Remaining
-> roadmap items are polish/testing (accessibility pass, unit tests) and deployment; see
-> [Roadmap](#future-improvements).
+> **Status:** Phase 7 — all five tools are functional and hardened: unit tests for core logic,
+> an accessibility pass (skip link, labeled controls, focus states), improved Job Description
+> Analyzer detection for unlabeled postings (e.g. JobStreet-style pastes), a Tailored CV Draft
+> generator in CV Matcher, and screenshot (OCR) upload support. Remaining roadmap item is
+> deployment polish; see [Roadmap](#future-improvements).
 
 ## Features
 
 | Tool | What it does |
 |---|---|
-| **CV Matcher** | Compares your CV against a job description and shows a match score, matched skills, and missing skills. |
+| **CV Matcher** | Compares your CV against a job description and shows a match score, matched skills, and missing skills — plus a Tailored CV Draft with a job-focused summary and reordered skills. |
 | **Job Description Analyzer** | Extracts position, skills, experience level, and things to double-check from a pasted job posting. |
 | **Cover Letter Generator** | Fills a simple form into a clean, editable cover letter draft — no AI API involved. |
 | **Interview Practice** | Common interview questions by role, with tips and a prep/answer timer. |
@@ -33,6 +34,12 @@ sent to a server just to be analyzed.
 - **pdfjs-dist** — extracts text from uploaded PDF CVs, entirely in the browser (no server
   upload). Dynamically imported only when a user actually uploads a PDF, so it doesn't add to
   the initial page load for everyone else.
+- **tesseract.js** — OCR for screenshot uploads (job postings, CVs), also entirely in the
+  browser. Dynamically imported only when an image is actually uploaded. Note: this is the one
+  dependency in this project with a real weight/accuracy trade-off — see
+  [OCR limitations](#ocr-screenshot-uploads--limitations) below.
+- **vitest** + **@testing-library/react** (dev only) — unit tests for the pure logic in `utils/`.
+  Not part of the production bundle.
 - No backend, no database, no paid APIs for the MVP.
 
 ## Screenshots
@@ -52,6 +59,9 @@ npm run dev
 
 # type-check + build for production
 npm run build
+
+# run the unit test suite
+npm run test
 
 # preview the production build locally
 npm run preview
@@ -101,6 +111,20 @@ hiring success — this is stated in the UI itself.
 - No CV or job description content is sent to third-party AI APIs.
 - See the in-app **About & Privacy** page for the full explanation.
 
+## OCR (screenshot uploads) — limitations
+
+The CV Matcher and Job Description Analyzer both accept screenshot uploads (up to 6 images at
+once), read with [Tesseract.js](https://github.com/naptha/tesseract.js) running fully in the
+browser. A few honest caveats:
+
+- The first screenshot upload in a session downloads the OCR engine + language data
+  (a few MB), which needs an internet connection. It's cached by the browser after that.
+- Accuracy depends heavily on image quality — low-resolution, low-contrast, or heavily
+  compressed screenshots will produce garbled text. Always review the extracted text before
+  analyzing.
+- This is slower than typing/pasting, especially on a low-spec machine. Copy-pasting text
+  directly is still the fastest and most accurate option when it's available.
+
 ## Future Improvements
 
 - Expand the skill dictionary and add more synonym coverage.
@@ -108,8 +132,6 @@ hiring success — this is stated in the UI itself.
 - Track status-change history in the tracker (not just current status) for more accurate
   interview/response rate metrics over time.
 - Optional PWA support ("install" the app / use offline) once the MVP is stable.
-- Unit tests for the pure logic in `utils/` (normalize text, skill matching, score calculation,
-  cover letter generation, tracker stats).
 
 _Explicitly out of scope for the MVP: user accounts, cloud sync, a real ATS score, AI-generated
 (LLM-based) cover letters, and automatic job recommendations._

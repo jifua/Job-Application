@@ -8,6 +8,16 @@ const LABELED_FIELD_PATTERNS: Record<string, RegExp> = {
   location: /^(location|lokasi)\s*[:\-]\s*(.+)$/i,
 };
 
+// Indonesian legal-entity prefixes — a strong signal a line is a company
+// name (job boards like JobStreet print the company name as a bare line,
+// with no "Company:" label).
+const COMPANY_PREFIX_PATTERN = /^(pt\.?|cv\.?|pd\.?|ud\.?|yayasan|koperasi)\s+\S/i;
+
+// Lines that are clearly *not* a job title/company, so the unlabeled
+// fallback below doesn't misfire on site chrome or boilerplate.
+const NON_TITLE_LINE_PATTERN =
+  /^(we are|kami|about|tentang|deskripsi|job description|responsibilities|requirements?|qualifications?|persyaratan|kualifikasi|quick apply|apply now|save job|share|report this|posted|diposting|lamar sekarang|simpan)\b/i;
+
 const RESPONSIBILITY_HEADERS =
   /^(responsibilities|job\s*description|duties|key\s*responsibilities|tanggung\s*jawab|deskripsi\s*pekerjaan|tugas)\s*:?\s*$/i;
 
@@ -52,6 +62,65 @@ function detectLabeledField(lines: string[], key: keyof typeof LABELED_FIELD_PAT
     }
   }
   return { value: "Not detected — please check manually", detected: false };
+}
+
+function looksLikeJobTitle(line: string): boolean {
+  if (line.length < 3 || line.length > 100) return false;
+  if (isBulletLine(line)) return false;
+  if (SECTION_HEADER.test(line)) return false;
+  if (NON_TITLE_LINE_PATTERN.test(line)) return false;
+  if (/[.!?]$/.test(line)) return false; // full sentences usually end in punctuation, titles don't
+  return true;
+}
+
+function looksLikeCompanyName(line: string): boolean {
+  if (line.length < 2 || line.length > 80) return false;
+  if (isBulletLine(line)) return false;
+  if (SECTION_HEADER.test(line)) return false;
+  if (NON_TITLE_LINE_PATTERN.test(line)) return false;
+  if (SALARY_PATTERN.test(line)) return false;
+  if (EXPERIENCE_PATTERN.test(line)) return false;
+  if (/[.!?]$/.test(line)) return false;
+  return true;
+}
+
+/**
+ * Many real job postings (JobStreet, LinkedIn, etc.) don't use explicit
+ * "Position:"/"Company:" labels — the title is just the first line, and
+ * the company is printed as a bare line (often "PT ...") right after it.
+ * This runs only for whichever field the labeled pass didn't already find.
+ */
+function detectPositionAndCompanyFallback(
+  lines: string[]
+): { position: DetectedField<string>; company: DetectedField<string> } {
+  let positionIndex = -1;
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    if (looksLikeJobTitle(lines[i])) {
+      positionIndex = i;
+      break;
+    }
+  }
+
+  const position: DetectedField<string> =
+    positionIndex >= 0
+      ? { value: lines[positionIndex], detected: true }
+      : { value: "Not detected — please check manually", detected: false };
+
+  // Strongest signal: an Indonesian legal-entity prefix (PT/CV/UD/...) anywhere near the top.
+  const strongCompanyLine = lines.slice(0, 8).find((line) => COMPANY_PREFIX_PATTERN.test(line));
+  if (strongCompanyLine) {
+    return { position, company: { value: strongCompanyLine.trim(), detected: true } };
+  }
+
+  // Weaker fallback: the line immediately after the detected title, if it's plausible.
+  if (positionIndex >= 0) {
+    const next = lines[positionIndex + 1];
+    if (next && looksLikeCompanyName(next)) {
+      return { position, company: { value: next, detected: true } };
+    }
+  }
+
+  return { position, company: { value: "Not detected — please check manually", detected: false } };
 }
 
 function detectExperience(text: string): DetectedField<string> {
@@ -170,8 +239,15 @@ function buildChecks(text: string, location: DetectedField<string>, experience: 
 export function analyzeJobDescription(rawText: string): JobAnalysis {
   const lines = splitLines(rawText);
 
-  const position = detectLabeledField(lines, "position");
-  const company = detectLabeledField(lines, "company");
+  let position = detectLabeledField(lines, "position");
+  let company = detectLabeledField(lines, "company");
+
+  if (!position.detected || !company.detected) {
+    const fallback = detectPositionAndCompanyFallback(lines);
+    if (!position.detected) position = fallback.position;
+    if (!company.detected) company = fallback.company;
+  }
+
   const experience = detectExperience(rawText);
   const education = detectEducation(rawText);
   const location = detectLocation(lines, rawText);

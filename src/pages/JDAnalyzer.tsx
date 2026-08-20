@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { analyzeJobDescription } from "../utils/jobAnalyzer";
+import { extractTextFromFiles } from "../utils/fileReader";
 import type { JobAnalysis } from "../types/job";
 import { Badge } from "../components/Badge";
 
@@ -53,6 +54,36 @@ export function JDAnalyzer() {
   const [input, setInput] = useState("");
   const [result, setResult] = useState<JobAnalysis | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isParsingFiles, setIsParsingFiles] = useState(false);
+  const [parseProgress, setParseProgress] = useState<string | null>(null);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    setIsParsingFiles(true);
+    setFileError(null);
+    setParseProgress(files.length > 1 ? "Reading screenshots…" : "Reading screenshot…");
+
+    try {
+      const { text, skippedCount } = await extractTextFromFiles(files, (current, total, message) => {
+        setParseProgress(total > 1 ? `Image ${current} of ${total}: ${message}` : message);
+      });
+      setInput(text);
+      setResult(null);
+      if (skippedCount > 0) {
+        setFileError(`Only the first 6 images were processed (${skippedCount} skipped).`);
+      }
+    } catch (err) {
+      setFileError(err instanceof Error ? err.message : "We couldn't read those images.");
+    } finally {
+      setIsParsingFiles(false);
+      setParseProgress(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   function handleAnalyze(event: FormEvent) {
     event.preventDefault();
@@ -82,6 +113,7 @@ export function JDAnalyzer() {
     setInput("");
     setResult(null);
     setError(null);
+    setFileError(null);
   }
 
   const checks = result?.checks;
@@ -91,21 +123,46 @@ export function JDAnalyzer() {
       <p className="eyebrow mb-3">Job Description Analyzer</p>
       <h1 className="text-3xl font-bold sm:text-4xl">Understand a job posting in seconds</h1>
       <p className="mt-3 max-w-2xl text-ink-soft">
-        Paste a job description below. This tool pulls out the role, skills, and key details
-        using keyword matching in your browser — nothing is uploaded to a server.
+        Paste a job description, or upload one or more screenshots of the posting. Everything —
+        including screenshot text recognition — runs in your browser; nothing is uploaded to a
+        server.
       </p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         {/* Input */}
         <form onSubmit={handleAnalyze} className="card flex flex-col">
-          <label htmlFor="jd-input" className="text-sm font-semibold text-ink">
-            Job description
-          </label>
+          <div className="flex items-center justify-between">
+            <label htmlFor="jd-input" className="text-sm font-semibold text-ink">
+              Job description
+            </label>
+            <label className="cursor-pointer text-sm font-medium text-blueprint-600 hover:underline">
+              Upload screenshot(s)
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScreenshotUpload}
+                className="sr-only"
+                aria-label="Upload one or more screenshots of the job posting"
+              />
+            </label>
+          </div>
+
+          {isParsingFiles && (
+            <p className="mt-1 text-xs text-blueprint-600">{parseProgress ?? "Reading screenshot…"}</p>
+          )}
+          {fileError && (
+            <p role="alert" className="mt-1 text-xs font-medium text-warn">
+              {fileError}
+            </p>
+          )}
+
           <textarea
             id="jd-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Paste the full job posting here, including the requirements and responsibilities sections..."
+            placeholder="Paste the full job posting here, or upload one or more screenshots above..."
             rows={16}
             className="mt-2 w-full resize-y rounded-md border border-surface-border p-3 text-sm text-ink placeholder:text-ink-soft/60 focus:border-blueprint-400 focus:outline-none"
             aria-describedby={error ? "jd-error" : undefined}
@@ -118,7 +175,7 @@ export function JDAnalyzer() {
           )}
 
           <div className="mt-4 flex flex-wrap gap-3">
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary" disabled={isParsingFiles}>
               Analyze Job
             </button>
             <button type="button" onClick={handleUseSample} className="btn-secondary">
