@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "preview": "vite preview"
+    "build": "npx tsc -b && npx vite build",
+    "lint": "npx oxlint",
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "preview": "npx vite preview"
   },
   "dependencies": {
     "pdfjs-dist": "^4.10.38",
