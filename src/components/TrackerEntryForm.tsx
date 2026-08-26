@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import type { ApplicationStatus, TrackerEntry, TrackerEntryDraft } from "../types/tracker";
-import { STATUS_LABELS, STATUS_ORDER } from "../types/tracker";
+import type { ApplicationSite, ApplicationStatus, TrackerEntry, TrackerEntryDraft } from "../types/tracker";
+import { SITE_LABELS, SITE_ORDER, STATUS_LABELS, STATUS_ORDER } from "../types/tracker";
 
 interface TrackerEntryFormProps {
   initialEntry: TrackerEntry | null; // null = creating a new entry
@@ -17,9 +17,12 @@ const EMPTY_DRAFT: TrackerEntryDraft = {
   position: "",
   location: "",
   jobUrl: "",
+  site: "other",
   applicationDate: todayIsoDate(),
   deadline: "",
   status: "applied",
+  jobDescription: "",
+  qualifications: "",
   notes: "",
 };
 
@@ -34,9 +37,12 @@ export function TrackerEntryForm({ initialEntry, onSubmit, onCancel }: TrackerEn
           position: initialEntry.position,
           location: initialEntry.location,
           jobUrl: initialEntry.jobUrl,
+          site: initialEntry.site,
           applicationDate: initialEntry.applicationDate,
           deadline: initialEntry.deadline,
           status: initialEntry.status,
+          jobDescription: initialEntry.jobDescription,
+          qualifications: initialEntry.qualifications,
           notes: initialEntry.notes,
         }
       : EMPTY_DRAFT
@@ -60,6 +66,8 @@ export function TrackerEntryForm({ initialEntry, onSubmit, onCancel }: TrackerEn
       position: draft.position.trim(),
       location: draft.location.trim(),
       jobUrl: draft.jobUrl.trim(),
+      jobDescription: draft.jobDescription.trim(),
+      qualifications: draft.qualifications.trim(),
       notes: draft.notes.trim(),
     });
   }
@@ -109,6 +117,23 @@ export function TrackerEntryForm({ initialEntry, onSubmit, onCancel }: TrackerEn
           />
         </div>
         <div>
+          <label htmlFor="entry-site" className="text-sm font-medium text-ink">
+            Applied via
+          </label>
+          <select
+            id="entry-site"
+            value={draft.site}
+            onChange={(e) => update("site", e.target.value as ApplicationSite)}
+            className={inputClass}
+          >
+            {SITE_ORDER.map((site) => (
+              <option key={site} value={site}>
+                {SITE_LABELS[site]}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label htmlFor="entry-status" className="text-sm font-medium text-ink">
             Status
           </label>
@@ -139,8 +164,7 @@ export function TrackerEntryForm({ initialEntry, onSubmit, onCancel }: TrackerEn
         </div>
         <div>
           <label htmlFor="entry-deadline" className="text-sm font-medium text-ink">
-            Deadline{" "}
-            <span className="font-normal text-ink-soft">(optional)</span>
+            Deadline <span className="font-normal text-ink-soft">(optional)</span>
           </label>
           <input
             id="entry-deadline"
@@ -161,6 +185,32 @@ export function TrackerEntryForm({ initialEntry, onSubmit, onCancel }: TrackerEn
             onChange={(e) => update("jobUrl", e.target.value)}
             placeholder="https://..."
             className={inputClass}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="entry-job-description" className="text-sm font-medium text-ink">
+            Job description <span className="font-normal text-ink-soft">(optional)</span>
+          </label>
+          <textarea
+            id="entry-job-description"
+            value={draft.jobDescription}
+            onChange={(e) => update("jobDescription", e.target.value)}
+            rows={3}
+            placeholder="Paste the job description here so you can find it again later..."
+            className={`${inputClass} resize-y`}
+          />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="entry-qualifications" className="text-sm font-medium text-ink">
+            Qualifications / requirements <span className="font-normal text-ink-soft">(optional)</span>
+          </label>
+          <textarea
+            id="entry-qualifications"
+            value={draft.qualifications}
+            onChange={(e) => update("qualifications", e.target.value)}
+            rows={3}
+            placeholder="Minimum education, years of experience, required skills, etc."
+            className={`${inputClass} resize-y`}
           />
         </div>
         <div className="sm:col-span-2">

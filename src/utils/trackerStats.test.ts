@@ -10,9 +10,12 @@ function makeEntries(statuses: ApplicationStatus[]) {
       position: "Test Role",
       location: "",
       jobUrl: "",
+      site: "other",
       applicationDate: "2026-08-01",
       deadline: "",
       status,
+      jobDescription: "",
+      qualifications: "",
       notes: "",
     })
   );
@@ -44,10 +47,11 @@ describe("calculateStats", () => {
     expect(stats.offerRate).toBe(0);
   });
 
-  it("counts anything not offer/rejected/withdrawn as pending", () => {
+  it("counts anything not offer/rejected/ghosted/withdrawn as pending", () => {
     const stats = calculateStats(
-      makeEntries(["applied", "screening", "test", "interview", "offer", "rejected", "withdrawn"])
+      makeEntries(["applied", "screening", "test", "interview", "offer", "rejected", "ghosted", "withdrawn"])
     );
     expect(stats.pending).toBe(4); // applied, screening, test, interview
+    expect(stats.ghosted).toBe(1);
   });
 });

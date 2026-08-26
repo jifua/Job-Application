@@ -3,9 +3,11 @@ import type { ApplicationStatus, TrackerEntry, TrackerEntryDraft } from "../type
 import { STATUS_LABELS, STATUS_ORDER } from "../types/tracker";
 import {
   applyEntryEdit,
+  applyStatusChange,
   clearAllEntries,
   createEntry,
   exportEntriesToJson,
+  exportEntriesToXlsx,
   loadEntries,
   parseImportedEntries,
   saveEntries,
@@ -58,6 +60,7 @@ export function Tracker() {
 
   const [importError, setImportError] = useState<string | null>(null);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
+  const [xlsxExporting, setXlsxExporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Load once on mount.
@@ -84,6 +87,27 @@ export function Tracker() {
     persist(entries.map((e) => (e.id === editingEntry.id ? applyEntryEdit(e, draft) : e)));
     setEditingEntry(null);
     setIsFormOpen(false);
+  }
+
+  function handleStatusChange(entry: TrackerEntry, status: ApplicationStatus) {
+    persist(entries.map((e) => (e.id === entry.id ? applyStatusChange(e, status) : e)));
+  }
+
+  async function handleExportXlsx() {
+    setXlsxExporting(true);
+    try {
+      const blob = await exportEntriesToXlsx(entries);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `job-application-tracker-${new Date().toISOString().slice(0, 10)}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(url);
+    } finally {
+      setXlsxExporting(false);
+    }
   }
 
   function handleConfirmDelete() {
@@ -200,18 +224,20 @@ export function Tracker() {
       ) : (
         <>
           {/* Dashboard */}
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
             <StatCard label="Applications" value={stats.total} />
             <StatCard label="Interviews" value={stats.interviews} />
             <StatCard label="Tests" value={stats.tests} />
             <StatCard label="Offers" value={stats.offers} tone="match" />
             <StatCard label="Rejected" value={stats.rejected} tone="warn" />
+            <StatCard label="Ghosted" value={stats.ghosted} tone="warn" />
             <StatCard label="Pending" value={stats.pending} tone="signal" />
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-3">
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <StatCard label="Interview rate" value={`${stats.interviewRate}%`} />
             <StatCard label="Response rate" value={`${stats.responseRate}%`} />
             <StatCard label="Offer rate" value={`${stats.offerRate}%`} tone="match" />
+            <StatCard label="Ghost rate" value={`${stats.ghostRate}%`} tone="warn" />
           </div>
           <p className="mt-2 text-xs text-ink-soft">
             Rates are based on each application's current status, not a full history of status
@@ -300,6 +326,7 @@ export function Tracker() {
                     setIsFormOpen(true);
                   }}
                   onDelete={() => setEntryPendingDelete(entry)}
+                  onStatusChange={(status) => handleStatusChange(entry, status)}
                 />
               ))
             )}
@@ -327,6 +354,14 @@ export function Tracker() {
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={handleExport} className="btn-secondary" disabled={entries.length === 0}>
             Export Data (.json)
+          </button>
+          <button
+            type="button"
+            onClick={handleExportXlsx}
+            className="btn-secondary"
+            disabled={entries.length === 0 || xlsxExporting}
+          >
+            {xlsxExporting ? "Preparing…" : "Export Data (.xlsx)"}
           </button>
           <label className="btn-secondary cursor-pointer">
             Import Data (.json)

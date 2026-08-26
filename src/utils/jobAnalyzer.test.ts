@@ -101,6 +101,26 @@ describe("analyzeJobDescription — section extraction", () => {
   });
 });
 
+describe("analyzeJobDescription — education", () => {
+  it("captures the full education requirement line, not just the matched keyword", () => {
+    const text = [
+      "IT Support",
+      "PT Contoh Sejahtera",
+      "Jakarta",
+      "",
+      "Requirements:",
+      "Pendidikan minimal D3 Teknik Informatika / Sistem Informasi / Teknik Komputer, atau SMK TKJ dengan pengalaman relevan.",
+      "Pengalaman minimal 1 tahun di bidang IT support.",
+    ].join("\n");
+
+    const result = analyzeJobDescription(text);
+    expect(result.education.detected).toBe(true);
+    expect(result.education.value).toBe(
+      "Pendidikan minimal D3 Teknik Informatika / Sistem Informasi / Teknik Komputer, atau SMK TKJ dengan pengalaman relevan."
+    );
+  });
+});
+
 describe("analyzeJobDescription — things to check", () => {
   it("flags a mentioned deadline and required documents", () => {
     const result = analyzeJobDescription(STRUCTURED_JD);

@@ -36,7 +36,17 @@ const EXPERIENCE_PATTERN =
   /(\d+\s*[-–to]+\s*\d+\s*(years?|tahun))|(\d+\+?\s*(years?|tahun)\s*(of)?\s*(experience|pengalaman)?)|(fresh\s*graduate)|(entry[-\s]?level)|(no\s*experience\s*required)/i;
 
 const EDUCATION_PATTERN =
-  /\b(bachelor'?s?( degree)?|master'?s?( degree)?|diploma|d3|s1|s2|sma\/smk|sma|smk|associate degree)\b/i;
+  /\b(bachelor'?s?( degree)?|master'?s?( degree)?|diploma|d1|d2|d3|d4|s1|s2|s3|sma\/smk|sma|smk|smk\/sma|slta|associate degree)\b/i;
+
+// Splits raw text into sentence-ish chunks so detectEducation can return
+// the whole requirement ("D3 Teknik Informatika ... atau SMK TKJ ...")
+// instead of just the bare keyword it matched on ("D3").
+function splitIntoSentences(text: string): string[] {
+  return text
+    .split(/\r?\n|(?<=[.;])\s+(?=[A-Z(])/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
 
 const SALARY_PATTERN = /\b(rp\.?\s?\d|idr\s?\d|salary range|gaji\s*[:\-]?\s*rp|\$\s?\d{2,}|take[-\s]?home\s*pay)\b/i;
 
@@ -132,6 +142,17 @@ function detectExperience(text: string): DetectedField<string> {
 }
 
 function detectEducation(text: string): DetectedField<string> {
+  const sentences = splitIntoSentences(text);
+  const hit = sentences.find((s) => EDUCATION_PATTERN.test(s));
+  if (hit) {
+    // Trim leading bullet markers / labels like "Requirements:" that may
+    // have stuck to the front of the sentence.
+    const cleaned = stripBulletMarker(hit).replace(/^(pendidikan|education)\s*[:\-]\s*/i, "");
+    return { value: cleaned, detected: true };
+  }
+
+  // Fallback: no sentence boundary matched (single-line text) — at least
+  // return the bare keyword rather than nothing.
   const match = text.match(EDUCATION_PATTERN);
   if (match) {
     return { value: match[0].trim(), detected: true };

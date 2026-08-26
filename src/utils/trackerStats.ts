@@ -1,12 +1,14 @@
 import type { TrackerEntry, TrackerStats } from "../types/tracker";
+import { TERMINAL_STATUSES } from "../types/tracker";
 
-const TERMINAL_STATUSES = new Set(["offer", "rejected", "withdrawn"]);
+const TERMINAL_STATUS_SET = new Set(TERMINAL_STATUSES);
 
 /**
  * Computes dashboard stats from the current status of each entry.
- * There's no status-history tracking in this MVP, so "Interviews" /
- * "Tests" / "Offers" reflect entries currently at that stage — not a
- * cumulative count of every application that ever reached it.
+ * There's no cumulative status-history aggregation here yet (statusHistory
+ * exists on each entry for a future timeline view) — "Interviews" / "Tests"
+ * / "Offers" reflect entries currently at that stage, not a cumulative
+ * count of every application that ever reached it.
  */
 export function calculateStats(entries: TrackerEntry[]): TrackerStats {
   const total = entries.length;
@@ -16,7 +18,8 @@ export function calculateStats(entries: TrackerEntry[]): TrackerStats {
   const tests = count((e) => e.status === "test");
   const offers = count((e) => e.status === "offer");
   const rejected = count((e) => e.status === "rejected");
-  const pending = count((e) => !TERMINAL_STATUSES.has(e.status));
+  const ghosted = count((e) => e.status === "ghosted");
+  const pending = count((e) => !TERMINAL_STATUS_SET.has(e.status));
   const responded = count((e) => e.status !== "applied");
 
   const pct = (n: number) => (total > 0 ? Math.round((n / total) * 100) : 0);
@@ -27,9 +30,11 @@ export function calculateStats(entries: TrackerEntry[]): TrackerStats {
     tests,
     offers,
     rejected,
+    ghosted,
     pending,
     interviewRate: pct(interviews),
     responseRate: pct(responded),
     offerRate: pct(offers),
+    ghostRate: pct(ghosted),
   };
 }
