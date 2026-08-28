@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { generateCoverLetter } from "../utils/coverLetterGenerator";
 import type { CoverLetterInput, CoverLetterTone } from "../types/coverLetter";
+import { CoverLetterTemplates } from "../components/CoverLetterTemplates";
 
 const EMPTY_INPUT: CoverLetterInput = {
   fullName: "",
@@ -50,11 +51,21 @@ const inputClass =
   "w-full rounded-md border border-surface-border p-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-blueprint-400 focus:outline-none";
 
 export function CoverLetter() {
+  const [activeTab, setActiveTab] = useState<"build" | "templates">("build");
   const [input, setInput] = useState<CoverLetterInput>(EMPTY_INPUT);
   const [formError, setFormError] = useState<string | null>(null);
   const [draft, setDraft] = useState<string | null>(null);
+  const [draftFromGenerator, setDraftFromGenerator] = useState(false);
   const [variantIndex, setVariantIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+
+  function handleUseTemplate(body: string) {
+    setDraft(body);
+    setDraftFromGenerator(false);
+    setFormError(null);
+    setCopied(false);
+    setActiveTab("build");
+  }
 
   function update<K extends keyof CoverLetterInput>(key: K, value: CoverLetterInput[K]) {
     setInput((prev) => ({ ...prev, [key]: value }));
@@ -77,6 +88,7 @@ export function CoverLetter() {
     setFormError(null);
     setVariantIndex(0);
     setDraft(generateCoverLetter(input, 0));
+    setDraftFromGenerator(true);
     setCopied(false);
   }
 
@@ -134,6 +146,38 @@ export function CoverLetter() {
         finished letter: read it over and make it sound like you before sending.
       </p>
 
+      <div className="mt-6 flex gap-2 border-b border-surface-border">
+        <button
+          type="button"
+          onClick={() => setActiveTab("build")}
+          className={`border-b-2 px-1 pb-3 text-sm font-semibold transition-colors ${
+            activeTab === "build"
+              ? "border-blueprint-500 text-blueprint-600"
+              : "border-transparent text-ink-soft hover:text-ink"
+          }`}
+        >
+          Buat dari awal
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("templates")}
+          className={`border-b-2 px-1 pb-3 text-sm font-semibold transition-colors ${
+            activeTab === "templates"
+              ? "border-blueprint-500 text-blueprint-600"
+              : "border-transparent text-ink-soft hover:text-ink"
+          }`}
+        >
+          Template & Panduan
+        </button>
+      </div>
+
+      {activeTab === "templates" && (
+        <div className="mt-6">
+          <CoverLetterTemplates onUseTemplate={handleUseTemplate} />
+        </div>
+      )}
+
+      {activeTab === "build" && (
       <div className="mt-8 grid gap-6 lg:grid-cols-2">
         {/* Form */}
         <form onSubmit={handleGenerate} className="flex flex-col gap-5">
@@ -279,13 +323,15 @@ export function CoverLetter() {
             <div className="card flex flex-1 flex-col">
               <div className="flex items-center justify-between">
                 <p className="eyebrow">Your draft (editable)</p>
-                <button
-                  type="button"
-                  onClick={handleTryAnotherWording}
-                  className="text-sm font-medium text-blueprint-600 hover:underline"
-                >
-                  Try another wording
-                </button>
+                {draftFromGenerator && (
+                  <button
+                    type="button"
+                    onClick={handleTryAnotherWording}
+                    className="text-sm font-medium text-blueprint-600 hover:underline"
+                  >
+                    Try another wording
+                  </button>
+                )}
               </div>
               <textarea
                 value={draft}
@@ -310,6 +356,7 @@ export function CoverLetter() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

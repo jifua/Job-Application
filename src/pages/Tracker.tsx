@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { ApplicationStatus, TrackerEntry, TrackerEntryDraft } from "../types/tracker";
-import { STATUS_LABELS, STATUS_ORDER } from "../types/tracker";
+import { STATUS_ORDER } from "../types/tracker";
 import {
   applyEntryEdit,
   applyStatusChange,
@@ -13,18 +13,15 @@ import {
   saveEntries,
 } from "../services/trackerStorage";
 import { calculateStats } from "../utils/trackerStats";
+import { extractTextFromFiles } from "../utils/fileReader";
+import { parseApplicationScreenshot } from "../utils/applicationScreenshotParser";
 import { StatCard } from "../components/StatCard";
 import { TrackerEntryForm } from "../components/TrackerEntryForm";
 import { TrackerEntryCard } from "../components/TrackerEntryCard";
 import { ConfirmDialog } from "../components/ConfirmDialog";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type SortOption = "deadline" | "applicationDate" | "company";
-
-const SORT_LABELS: Record<SortOption, string> = {
-  deadline: "Deadline (soonest first)",
-  applicationDate: "Application date (newest first)",
-  company: "Company (A–Z)",
-};
 
 function sortEntries(entries: TrackerEntry[], sortBy: SortOption): TrackerEntry[] {
   const sorted = [...entries];
@@ -44,6 +41,7 @@ function sortEntries(entries: TrackerEntry[], sortBy: SortOption): TrackerEntry[
 }
 
 export function Tracker() {
+  const { t } = useLanguage();
   const [entries, setEntries] = useState<TrackerEntry[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -63,6 +61,13 @@ export function Tracker() {
   const [xlsxExporting, setXlsxExporting] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
 
+  // Screenshot -> pre-filled form flow.
+  const [screenshotDraft, setScreenshotDraft] = useState<Partial<TrackerEntryDraft> | null>(null);
+  const [screenshotFields, setScreenshotFields] = useState<(keyof TrackerEntryDraft)[]>([]);
+  const [isReadingScreenshot, setIsReadingScreenshot] = useState(false);
+  const [screenshotProgress, setScreenshotProgress] = useState<string | null>(null);
+  const [screenshotError, setScreenshotError] = useState<string | null>(null);
+
   // Load once on mount.
   useEffect(() => {
     const { entries: loaded, error } = loadEntries();
@@ -79,18 +84,65 @@ export function Tracker() {
 
   function handleAddEntry(draft: TrackerEntryDraft) {
     persist([...entries, createEntry(draft)]);
-    setIsFormOpen(false);
+    closeForm();
   }
 
   function handleUpdateEntry(draft: TrackerEntryDraft) {
     if (!editingEntry) return;
     persist(entries.map((e) => (e.id === editingEntry.id ? applyEntryEdit(e, draft) : e)));
-    setEditingEntry(null);
-    setIsFormOpen(false);
+    closeForm();
   }
 
   function handleStatusChange(entry: TrackerEntry, status: ApplicationStatus) {
     persist(entries.map((e) => (e.id === entry.id ? applyStatusChange(e, status) : e)));
+  }
+
+  async function handleScreenshotUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (files.length === 0) return;
+
+    setIsReadingScreenshot(true);
+    setScreenshotError(null);
+    setScreenshotProgress(files.length > 1 ? t.tracker.readingScreenshot : t.tracker.readingScreenshot);
+
+    try {
+      const { text, skippedCount } = await extractTextFromFiles(files, (current, total, message) => {
+        setScreenshotProgress(total > 1 ? `${current}/${total}: ${message}` : message);
+      });
+      const { guess, fieldsFound } = parseApplicationScreenshot(text);
+      setScreenshotDraft(guess);
+      setScreenshotFields(fieldsFound);
+      setEditingEntry(null);
+      setIsFormOpen(true);
+      if (skippedCount > 0) {
+        setScreenshotError(t.tracker.screenshotOnlyFirstSix.replace("{count}", String(skippedCount)));
+      }
+      if (fieldsFound.length === 0) {
+        setScreenshotError(t.tracker.screenshotNoFieldsFound);
+      }
+    } catch (err) {
+      setScreenshotError(err instanceof Error ? err.message : t.tracker.screenshotReadError);
+    } finally {
+      setIsReadingScreenshot(false);
+      setScreenshotProgress(null);
+      event.target.value = "";
+    }
+  }
+
+  function openBlankForm() {
+    setEditingEntry(null);
+    setScreenshotDraft(null);
+    setScreenshotFields([]);
+    setScreenshotError(null);
+    setIsFormOpen(true);
+  }
+
+  function closeForm() {
+    setIsFormOpen(false);
+    setEditingEntry(null);
+    setScreenshotDraft(null);
+    setScreenshotFields([]);
+    setScreenshotError(null);
   }
 
   async function handleExportXlsx() {
@@ -144,9 +196,9 @@ export function Tracker() {
       const existingIds = new Set(entries.map((e) => e.id));
       const merged = [...entries, ...imported.filter((e) => !existingIds.has(e.id))];
       persist(merged);
-      setImportSuccess(`Imported ${imported.length} application${imported.length === 1 ? "" : "s"}.`);
+      setImportSuccess(t.tracker.importedSuccess.replace("{count}", String(imported.length)));
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : "We couldn't import that file.");
+      setImportError(err instanceof Error ? err.message : t.tracker.importGenericError);
     } finally {
       if (importInputRef.current) importInputRef.current.value = "";
     }
@@ -169,24 +221,27 @@ export function Tracker() {
     <div className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="eyebrow mb-3">Application Tracker</p>
-          <h1 className="text-3xl font-bold sm:text-4xl">Keep every application in one place</h1>
-          <p className="mt-3 max-w-2xl text-ink-soft">
-            Saved only in this browser, on this device — nothing is sent to a server. Use{" "}
-            <strong>Export Data</strong> below to back it up.
-          </p>
+          <p className="eyebrow mb-3">{t.tracker.eyebrow}</p>
+          <h1 className="text-3xl font-bold sm:text-4xl">{t.tracker.title}</h1>
+          <p className="mt-3 max-w-2xl text-ink-soft">{t.tracker.subtitle}</p>
         </div>
         {hasLoaded && entries.length > 0 && (
-          <button
-            type="button"
-            onClick={() => {
-              setEditingEntry(null);
-              setIsFormOpen(true);
-            }}
-            className="btn-primary shrink-0"
-          >
-            Add application
-          </button>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <label className="btn-secondary cursor-pointer">
+              {isReadingScreenshot ? (screenshotProgress ?? t.tracker.readingScreenshot) : t.tracker.addFromScreenshot}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScreenshotUpload}
+                disabled={isReadingScreenshot}
+                className="sr-only"
+              />
+            </label>
+            <button type="button" onClick={openBlankForm} className="btn-primary">
+              {t.tracker.addApplication}
+            </button>
+          </div>
         )}
       </div>
 
@@ -201,67 +256,85 @@ export function Tracker() {
         </p>
       )}
 
+      {screenshotError && (
+        <p role="alert" className="mt-4 rounded-md bg-warn-soft px-4 py-3 text-sm font-medium text-warn">
+          {screenshotError}
+        </p>
+      )}
+
       {!hasLoaded ? (
-        <div className="card mt-8 py-16 text-center text-ink-soft">Loading your saved applications…</div>
+        <div className="card mt-8 py-16 text-center text-ink-soft">{t.tracker.loading}</div>
       ) : entries.length === 0 ? (
+        isFormOpen ? (
+          <div className="mt-8">
+            <TrackerEntryForm
+              initialEntry={null}
+              prefill={screenshotDraft ?? undefined}
+              autoDetectedFields={screenshotFields}
+              onSubmit={handleAddEntry}
+              onCancel={closeForm}
+            />
+          </div>
+        ) : (
         <div className="card mt-8 flex flex-col items-center gap-3 py-16 text-center">
-          <p className="font-medium text-ink">No applications tracked yet</p>
-          <p className="max-w-sm text-sm text-ink-soft">
-            Add your first application to start tracking status, deadlines, and your response
-            rate over time.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingEntry(null);
-              setIsFormOpen(true);
-            }}
-            className="btn-primary mt-2"
-          >
-            Add your first application
-          </button>
+          <p className="font-medium text-ink">{t.tracker.emptyTitle}</p>
+          <p className="max-w-sm text-sm text-ink-soft">{t.tracker.emptyBody}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-3">
+            <label className="btn-secondary cursor-pointer">
+              {isReadingScreenshot ? (screenshotProgress ?? t.tracker.readingScreenshot) : t.tracker.addFromScreenshot}
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleScreenshotUpload}
+                disabled={isReadingScreenshot}
+                className="sr-only"
+              />
+            </label>
+            <button type="button" onClick={openBlankForm} className="btn-primary">
+              {t.tracker.addFirstApplication}
+            </button>
+          </div>
         </div>
+        )
       ) : (
         <>
           {/* Dashboard */}
           <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
-            <StatCard label="Applications" value={stats.total} />
-            <StatCard label="Interviews" value={stats.interviews} />
-            <StatCard label="Tests" value={stats.tests} />
-            <StatCard label="Offers" value={stats.offers} tone="match" />
-            <StatCard label="Rejected" value={stats.rejected} tone="warn" />
-            <StatCard label="Ghosted" value={stats.ghosted} tone="warn" />
-            <StatCard label="Pending" value={stats.pending} tone="signal" />
+            <StatCard label={t.tracker.statTotal} value={stats.total} />
+            <StatCard label={t.tracker.statInterviews} value={stats.interviews} />
+            <StatCard label={t.tracker.statTests} value={stats.tests} />
+            <StatCard label={t.tracker.statOffers} value={stats.offers} tone="match" />
+            <StatCard label={t.tracker.statRejected} value={stats.rejected} tone="warn" />
+            <StatCard label={t.tracker.statGhosted} value={stats.ghosted} tone="warn" />
+            <StatCard label={t.tracker.statPending} value={stats.pending} tone="signal" />
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <StatCard label="Interview rate" value={`${stats.interviewRate}%`} />
-            <StatCard label="Response rate" value={`${stats.responseRate}%`} />
-            <StatCard label="Offer rate" value={`${stats.offerRate}%`} tone="match" />
-            <StatCard label="Ghost rate" value={`${stats.ghostRate}%`} tone="warn" />
+            <StatCard label={t.tracker.statInterviewRate} value={`${stats.interviewRate}%`} />
+            <StatCard label={t.tracker.statResponseRate} value={`${stats.responseRate}%`} />
+            <StatCard label={t.tracker.statOfferRate} value={`${stats.offerRate}%`} tone="match" />
+            <StatCard label={t.tracker.statGhostRate} value={`${stats.ghostRate}%`} tone="warn" />
           </div>
-          <p className="mt-2 text-xs text-ink-soft">
-            Rates are based on each application's current status, not a full history of status
-            changes.
-          </p>
+          <p className="mt-2 text-xs text-ink-soft">{t.tracker.rateDisclaimer}</p>
 
           {/* Filters */}
           <div className="card mt-8 flex flex-wrap items-end gap-4">
             <div className="min-w-[200px] flex-1">
               <label htmlFor="tracker-search" className="text-sm font-medium text-ink">
-                Search
+                {t.tracker.searchLabel}
               </label>
               <input
                 id="tracker-search"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search by company or position..."
+                placeholder={t.tracker.searchPlaceholder}
                 className="mt-1.5 w-full rounded-md border border-surface-border p-2.5 text-sm text-ink placeholder:text-ink-soft/60 focus:border-blueprint-400 focus:outline-none"
               />
             </div>
             <div>
               <label htmlFor="tracker-status-filter" className="text-sm font-medium text-ink">
-                Status
+                {t.tracker.statusFilterLabel}
               </label>
               <select
                 id="tracker-status-filter"
@@ -269,17 +342,17 @@ export function Tracker() {
                 onChange={(e) => setStatusFilter(e.target.value as ApplicationStatus | "all")}
                 className="mt-1.5 rounded-md border border-surface-border p-2.5 text-sm text-ink focus:border-blueprint-400 focus:outline-none"
               >
-                <option value="all">All statuses</option>
+                <option value="all">{t.tracker.statusFilterAll}</option>
                 {STATUS_ORDER.map((status) => (
                   <option key={status} value={status}>
-                    {STATUS_LABELS[status]}
+                    {t.tracker.status[status]}
                   </option>
                 ))}
               </select>
             </div>
             <div>
               <label htmlFor="tracker-sort" className="text-sm font-medium text-ink">
-                Sort by
+                {t.tracker.sortLabel}
               </label>
               <select
                 id="tracker-sort"
@@ -287,9 +360,9 @@ export function Tracker() {
                 onChange={(e) => setSortBy(e.target.value as SortOption)}
                 className="mt-1.5 rounded-md border border-surface-border p-2.5 text-sm text-ink focus:border-blueprint-400 focus:outline-none"
               >
-                {(Object.keys(SORT_LABELS) as SortOption[]).map((option) => (
+                {(Object.keys(t.tracker.sortOptions) as SortOption[]).map((option) => (
                   <option key={option} value={option}>
-                    {SORT_LABELS[option]}
+                    {t.tracker.sortOptions[option]}
                   </option>
                 ))}
               </select>
@@ -301,11 +374,10 @@ export function Tracker() {
             <div className="mt-6">
               <TrackerEntryForm
                 initialEntry={editingEntry}
+                prefill={screenshotDraft ?? undefined}
+                autoDetectedFields={screenshotFields}
                 onSubmit={editingEntry ? handleUpdateEntry : handleAddEntry}
-                onCancel={() => {
-                  setIsFormOpen(false);
-                  setEditingEntry(null);
-                }}
+                onCancel={closeForm}
               />
             </div>
           )}
@@ -313,9 +385,7 @@ export function Tracker() {
           {/* List */}
           <div className="mt-6 flex flex-col gap-3">
             {visibleEntries.length === 0 ? (
-              <div className="card py-10 text-center text-sm text-ink-soft">
-                No applications match your current search/filter.
-              </div>
+              <div className="card py-10 text-center text-sm text-ink-soft">{t.tracker.noResultsMatch}</div>
             ) : (
               visibleEntries.map((entry) => (
                 <TrackerEntryCard
@@ -336,13 +406,8 @@ export function Tracker() {
 
       {/* Data management */}
       <div className="card mt-10">
-        <p className="eyebrow mb-2">Your data</p>
-        <p className="mb-4 text-sm text-ink-soft">
-          Everything above is stored only in this browser's local storage, on this device. There
-          is no account and no cloud sync — clearing your browser data, using a different
-          browser, or switching devices will remove it. Export a backup regularly if this data
-          matters to you.
-        </p>
+        <p className="eyebrow mb-2">{t.tracker.yourDataTitle}</p>
+        <p className="mb-4 text-sm text-ink-soft">{t.tracker.yourDataBody}</p>
 
         {importError && (
           <p role="alert" className="mb-3 text-sm font-medium text-warn">
@@ -353,7 +418,7 @@ export function Tracker() {
 
         <div className="flex flex-wrap gap-3">
           <button type="button" onClick={handleExport} className="btn-secondary" disabled={entries.length === 0}>
-            Export Data (.json)
+            {t.tracker.exportJson}
           </button>
           <button
             type="button"
@@ -361,10 +426,10 @@ export function Tracker() {
             className="btn-secondary"
             disabled={entries.length === 0 || xlsxExporting}
           >
-            {xlsxExporting ? "Preparing…" : "Export Data (.xlsx)"}
+            {xlsxExporting ? t.tracker.exportXlsxPreparing : t.tracker.exportXlsx}
           </button>
           <label className="btn-secondary cursor-pointer">
-            Import Data (.json)
+            {t.tracker.importJson}
             <input
               ref={importInputRef}
               type="file"
@@ -382,16 +447,18 @@ export function Tracker() {
             disabled={entries.length === 0}
             className="ml-auto text-sm font-medium text-warn hover:underline disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Clear All Data
+            {t.tracker.clearAllData}
           </button>
         </div>
       </div>
 
       {entryPendingDelete && (
         <ConfirmDialog
-          title="Delete this application?"
-          description={`This will remove "${entryPendingDelete.position}" at "${entryPendingDelete.company}" from your tracker. This can't be undone.`}
-          confirmLabel="Delete"
+          title={t.tracker.deleteConfirmTitle}
+          description={t.tracker.deleteConfirmDescription
+            .replace("{position}", entryPendingDelete.position)
+            .replace("{company}", entryPendingDelete.company)}
+          confirmLabel={t.tracker.deleteConfirmButton}
           onConfirm={handleConfirmDelete}
           onCancel={() => setEntryPendingDelete(null)}
         />
@@ -399,9 +466,9 @@ export function Tracker() {
 
       {showClearConfirm && (
         <ConfirmDialog
-          title="Clear all tracker data?"
-          description="This will permanently delete every application saved in this browser. Consider exporting a backup first. This can't be undone."
-          confirmLabel="Clear everything"
+          title={t.tracker.clearConfirmTitle}
+          description={t.tracker.clearConfirmDescription}
+          confirmLabel={t.tracker.clearConfirmButton}
           onConfirm={handleConfirmClearAll}
           onCancel={() => setShowClearConfirm(false)}
         />

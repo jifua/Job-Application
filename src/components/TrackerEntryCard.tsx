@@ -1,8 +1,9 @@
 import type { ApplicationStatus, TrackerEntry } from "../types/tracker";
-import { SITE_LABELS, STATUS_LABELS, STATUS_ORDER } from "../types/tracker";
+import { STATUS_ORDER } from "../types/tracker";
 import { getDeadlineState } from "../utils/deadlineStatus";
 import { isLikelyGhosted } from "../utils/ghostingDetector";
 import { Badge } from "./Badge";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface TrackerEntryCardProps {
   entry: TrackerEntry;
@@ -22,14 +23,16 @@ const STATUS_TONE: Record<TrackerEntry["status"], "neutral" | "match" | "warn" |
   withdrawn: "neutral",
 };
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, locale: string): string {
   if (!iso) return "";
   const date = new Date(`${iso}T00:00:00`);
   if (Number.isNaN(date.getTime())) return iso;
-  return date.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" });
 }
 
 export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: TrackerEntryCardProps) {
+  const { t, lang } = useLanguage();
+  const locale = lang === "id" ? "id-ID" : "en-US";
   const deadlineState = getDeadlineState(entry.deadline);
   const possiblyGhosted = isLikelyGhosted(entry);
 
@@ -41,20 +44,24 @@ export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: Tr
           <p className="text-sm text-ink-soft">
             {entry.company}
             {entry.location && ` · ${entry.location}`}
-            {entry.site && ` · ${SITE_LABELS[entry.site]}`}
+            {entry.site && ` · ${t.tracker.site[entry.site]}`}
           </p>
         </div>
-        <Badge tone={STATUS_TONE[entry.status]}>{STATUS_LABELS[entry.status]}</Badge>
+        <Badge tone={STATUS_TONE[entry.status]}>{t.tracker.status[entry.status]}</Badge>
       </div>
 
       {possiblyGhosted && (
         <p className="mt-2 rounded-md bg-warn-soft px-3 py-2 text-xs font-medium text-warn">
-          No update in 30+ days — this may have been ghosted. If so, update the status below.
+          {t.tracker.card.ghostWarning}
         </p>
       )}
 
       <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-ink-soft">
-        {entry.applicationDate && <span>Applied {formatDate(entry.applicationDate)}</span>}
+        {entry.applicationDate && (
+          <span>
+            {t.tracker.card.applied} {formatDate(entry.applicationDate, locale)}
+          </span>
+        )}
         {entry.deadline && (
           <span
             className={
@@ -65,9 +72,9 @@ export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: Tr
                   : ""
             }
           >
-            Deadline {formatDate(entry.deadline)}
-            {deadlineState === "overdue" && " — Deadline passed"}
-            {deadlineState === "soon" && " — Deadline soon"}
+            {t.tracker.card.deadlineLabel} {formatDate(entry.deadline, locale)}
+            {deadlineState === "overdue" && ` ${t.tracker.card.deadlinePassed}`}
+            {deadlineState === "soon" && ` ${t.tracker.card.deadlineSoon}`}
           </span>
         )}
         {entry.jobUrl && (
@@ -77,7 +84,7 @@ export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: Tr
             rel="noopener noreferrer"
             className="font-medium text-blueprint-600 hover:underline"
           >
-            View posting ↗
+            {t.tracker.card.viewPosting}
           </a>
         )}
       </div>
@@ -87,7 +94,7 @@ export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: Tr
       <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-surface-border pt-3 text-sm">
         <div className="flex items-center gap-2">
           <label htmlFor={`quick-status-${entry.id}`} className="text-xs font-medium text-ink-soft">
-            Update status:
+            {t.tracker.card.updateStatus}
           </label>
           <select
             id={`quick-status-${entry.id}`}
@@ -97,16 +104,16 @@ export function TrackerEntryCard({ entry, onEdit, onDelete, onStatusChange }: Tr
           >
             {STATUS_ORDER.map((status) => (
               <option key={status} value={status}>
-                {STATUS_LABELS[status]}
+                {t.tracker.status[status]}
               </option>
             ))}
           </select>
         </div>
         <button type="button" onClick={onEdit} className="font-medium text-blueprint-600 hover:underline">
-          Edit
+          {t.tracker.card.edit}
         </button>
         <button type="button" onClick={onDelete} className="font-medium text-ink-soft hover:text-warn">
-          Delete
+          {t.tracker.card.delete}
         </button>
       </div>
     </div>
