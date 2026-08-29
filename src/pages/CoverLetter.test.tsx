@@ -58,4 +58,52 @@ describe("CoverLetter — Templates & Guide tab", () => {
     expect(screen.getByText("Tempat dan tanggal")).toBeInTheDocument();
     expect(screen.getByText("Tanda tangan")).toBeInTheDocument();
   });
+
+  it("generates a customized letter from pasted job + CV text, using matched skills and extracted name", () => {
+    render(<CoverLetter />);
+    fireEvent.click(screen.getByRole("button", { name: "Template & Panduan" }));
+
+    const target = COVER_LETTER_TEMPLATES.find((t) => t.id === "it-tech")!;
+    fireEvent.click(screen.getByText(target.title));
+    fireEvent.click(screen.getByRole("button", { name: "Generate dari CV & lowongan" }));
+
+    fireEvent.change(screen.getByLabelText("Info lowongan / kualifikasi job"), {
+      target: {
+        value: "Backend Developer\nPT Teknologi Maju\n\nRequirements:\n- Proficient in Python and SQL",
+      },
+    });
+    fireEvent.change(screen.getByLabelText("CV / data diri"), {
+      target: { value: "Nama: Rangga Saputra\n\nSkills: Python, SQL, Docker" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Analisis & tinjau data" }));
+
+    // Review screen should be pre-filled from the extraction.
+    const nameInput = screen.getByLabelText(/Nama lengkap/) as HTMLInputElement;
+    const positionInput = screen.getByLabelText(/Posisi/) as HTMLInputElement;
+    const companyInput = screen.getByLabelText(/Perusahaan/) as HTMLInputElement;
+    expect(nameInput.value).toBe("Rangga Saputra");
+    expect(positionInput.value).toBe("Backend Developer");
+    expect(companyInput.value).toBe("PT Teknologi Maju");
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+
+    // Should land back on the build tab with the generated letter in the editable draft.
+    const draftTextarea = screen.getByLabelText(/Generated cover letter draft, editable/i) as HTMLTextAreaElement;
+    expect(draftTextarea.value).toContain("Rangga Saputra");
+    expect(draftTextarea.value).toContain("PT Teknologi Maju");
+    expect(draftTextarea.value).toContain("Python");
+  });
+
+  it("shows all four download options once a draft exists", () => {
+    render(<CoverLetter />);
+    fireEvent.click(screen.getByRole("button", { name: "Template & Panduan" }));
+    fireEvent.click(screen.getByText(COVER_LETTER_TEMPLATES[0].title));
+    fireEvent.click(screen.getByRole("button", { name: "Gunakan sebagai draf awal" }));
+
+    expect(screen.getByRole("button", { name: "Download .docx" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download .pdf" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download .png" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download .txt" })).toBeInTheDocument();
+  });
 });

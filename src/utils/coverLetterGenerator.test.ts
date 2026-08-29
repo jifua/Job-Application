@@ -11,6 +11,7 @@ const BASE_INPUT: CoverLetterInput = {
   achievement: "",
   whyCompany: "",
   tone: "formal",
+  language: "en",
 };
 
 describe("generateCoverLetter", () => {
@@ -47,6 +48,7 @@ describe("generateCoverLetter", () => {
       achievement: "",
       whyCompany: "",
       tone: "formal",
+      language: "en",
     };
     const letter = generateCoverLetter(minimal);
 
@@ -67,6 +69,45 @@ describe("generateCoverLetter", () => {
       expect(letter).toContain("Jane Doe");
       expect(letter).toContain("Acme Analytics");
     }
+  });
+
+  it("generates a full Indonesian letter with Indonesian greeting and sign-off when language is 'id'", () => {
+    const letter = generateCoverLetter({ ...BASE_INPUT, language: "id" });
+    expect(letter).toContain("Kepada Yth. Bapak/Ibu HRD,");
+    expect(letter).toContain("Hormat saya,");
+    expect(letter).toContain("Jane Doe");
+    expect(letter).toContain("Acme Analytics");
+    // Should not leak any English phrase bank content.
+    expect(letter).not.toMatch(/Dear|Sincerely|Best,/);
+  });
+
+  it("greets the named hiring manager in Indonesian when one is provided", () => {
+    const letter = generateCoverLetter({ ...BASE_INPUT, language: "id", hiringManager: "Bapak Andi" });
+    expect(letter).toContain("Kepada Yth. Bapak Andi,");
+  });
+
+  it("uses an Indonesian friendly greeting for the 'friendly' tone", () => {
+    const letter = generateCoverLetter({ ...BASE_INPUT, language: "id", tone: "friendly" });
+    expect(letter).toContain("Halo,");
+  });
+
+  it("still produces a complete Indonesian letter with only required fields filled in", () => {
+    const minimal: CoverLetterInput = {
+      fullName: "Budi Santoso",
+      position: "Staff Admin",
+      company: "PT Contoh Jaya",
+      hiringManager: "",
+      keySkillsRaw: "",
+      achievement: "",
+      whyCompany: "",
+      tone: "formal",
+      language: "id",
+    };
+    const letter = generateCoverLetter(minimal);
+    expect(letter).toContain("Budi Santoso");
+    expect(letter).toContain("PT Contoh Jaya");
+    expect(letter).not.toContain("undefined");
+    expect(letter).not.toContain("null");
   });
 });
 

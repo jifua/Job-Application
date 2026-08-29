@@ -1,4 +1,5 @@
 export type TemplateLanguage = "id" | "en";
+export type TemplateTone = "formal" | "friendly";
 
 export interface CoverLetterTemplate {
   id: string;
@@ -8,6 +9,8 @@ export interface CoverLetterTemplate {
   useCase: string;
   category: "general" | "position-specific" | "format-specific" | "experience-level";
   language: TemplateLanguage;
+  /** Which phrase bank to use when generating a letter from this template's style. */
+  tone: TemplateTone;
   /** The full example letter, ready to read and adapt. */
   body: string;
   /** Short callouts on what makes this template work, shown alongside it. */
@@ -21,6 +24,7 @@ export const COVER_LETTER_TEMPLATES: CoverLetterTemplate[] = [
     useCase: "Cocok untuk melamar posisi apa pun di perusahaan yang belum kamu kenal budayanya — pilihan aman.",
     category: "general",
     language: "id",
+    tone: "formal",
     tips: [
       "Sebutkan sumber informasi lowongan di kalimat pembuka — ini menunjukkan kamu benar-benar mencari, bukan menyebar lamaran acak.",
       "Satu pencapaian dengan angka lebih kuat daripada tiga klaim tanpa bukti.",
@@ -61,6 +65,7 @@ Ratna Wulandari`,
     useCase: "Untuk posisi yang tidak butuh surat panjang — cukup satu paragraf inti, langsung ke tujuan.",
     category: "general",
     language: "id",
+    tone: "formal",
     tips: [
       "Jangan buang ruang untuk basa-basi; HRD yang menyaring puluhan lamaran akan menghargai keringkasan.",
       "Tetap sertakan satu kalimat tentang kualifikasi utamamu, jangan cuma \"saya melamar posisi X\".",
@@ -89,6 +94,7 @@ Wahyu Setiawan`,
     useCase: "For applying to multinational companies or roles where English is the working language.",
     category: "general",
     language: "en",
+    tone: "formal",
     tips: [
       "Keep sentences shorter than you would in Indonesian — English formal writing favors directness over elaborate phrasing.",
       "Quantify at least one achievement; 'improved efficiency' means less than 'reduced processing time by 30%'.",
@@ -117,6 +123,7 @@ dian.permatasari@email.com | 0812-xxxx-xxxx`,
     useCase: "Untuk mahasiswa atau fresh graduate yang melamar program magang, minim pengalaman kerja formal.",
     category: "experience-level",
     language: "id",
+    tone: "formal",
     tips: [
       "Belum punya pengalaman kerja? Gunakan proyek kuliah, organisasi, atau lomba sebagai bukti kemampuan.",
       "Tunjukkan antusiasme belajar — perusahaan tahu peserta magang masih dalam proses berkembang.",
@@ -154,6 +161,7 @@ Fajar Nugraha`,
     useCase: "Untuk pelamar yang beralih bidang dan perlu menjelaskan mengapa pengalaman sebelumnya tetap relevan.",
     category: "experience-level",
     language: "id",
+    tone: "formal",
     tips: [
       "Jangan sembunyikan latar belakang berbeda — jelaskan dengan percaya diri kaitan skill-nya, bukan minta maaf karena tidak linear.",
       "Fokus ke transferable skills: komunikasi, problem-solving, manajemen waktu, dsb.",
@@ -186,6 +194,7 @@ Nadia Kusumawati`,
     useCase: "Untuk posisi graphic designer, content creator, atau peran kreatif lain yang menilai portofolio.",
     category: "position-specific",
     language: "id",
+    tone: "formal",
     tips: [
       "Selalu sertakan tautan portofolio — surat lamaran kreatif tanpa contoh karya kurang meyakinkan.",
       "Boleh sedikit lebih personal/bergaya, tapi tetap jelas dan profesional.",
@@ -218,6 +227,7 @@ Alief Hidayat`,
     useCase: "Untuk posisi yang menonjolkan kemampuan komunikasi dan pencapaian target.",
     category: "position-specific",
     language: "id",
+    tone: "formal",
     tips: [
       "Angka penjualan atau rating kepuasan pelanggan adalah bukti paling kuat untuk posisi ini — selalu sertakan jika ada.",
       "Tunjukkan sikap ramah lewat pilihan kata, bukan hanya klaim \"saya orangnya komunikatif\".",
@@ -250,6 +260,7 @@ Putri Anggraini`,
     useCase: "Untuk posisi software engineer, IT support, atau peran teknis lain.",
     category: "position-specific",
     language: "id",
+    tone: "formal",
     tips: [
       "Sebut tools/bahasa pemrograman spesifik yang relevan dengan lowongan, bukan daftar generik semua yang pernah dipelajari.",
       "Kalau punya proyek open-source atau GitHub aktif, cantumkan — banyak recruiter tech memeriksanya.",
@@ -282,6 +293,7 @@ Reza Firmansyah`,
     useCase: "Saat mengirim lamaran langsung lewat email, bukan lampiran surat terpisah.",
     category: "format-specific",
     language: "id",
+    tone: "formal",
     tips: [
       "Isi kolom subjek dengan format jelas: 'Lamaran Kerja – [Posisi] – [Nama]' agar mudah disortir HRD.",
       "Karena tempat & tanggal surat bersifat opsional untuk email, langsung mulai dari salam pembuka.",
@@ -312,6 +324,7 @@ Bagus Prasetyo
     useCase: "Untuk lulusan baru yang melamar posisi entry-level tanpa pengalaman kerja penuh waktu.",
     category: "experience-level",
     language: "id",
+    tone: "formal",
     tips: [
       "Manfaatkan IPK jika di atas 3.3, organisasi kampus, atau proyek akhir sebagai pengganti pengalaman kerja.",
       "Tunjukkan bahwa kamu sudah riset perusahaan — ini yang paling membedakan fresh graduate yang serius dari yang asal kirim CV.",

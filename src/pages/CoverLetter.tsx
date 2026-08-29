@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { generateCoverLetter } from "../utils/coverLetterGenerator";
-import type { CoverLetterInput, CoverLetterTone } from "../types/coverLetter";
+import { exportCoverLetterToDocx, exportCoverLetterToPdf, exportCoverLetterToPng } from "../utils/coverLetterExport";
+import type { CoverLetterInput, CoverLetterLanguage, CoverLetterTone } from "../types/coverLetter";
 import { CoverLetterTemplates } from "../components/CoverLetterTemplates";
 
 const EMPTY_INPUT: CoverLetterInput = {
@@ -12,6 +13,7 @@ const EMPTY_INPUT: CoverLetterInput = {
   achievement: "",
   whyCompany: "",
   tone: "formal",
+  language: "id",
 };
 
 const SAMPLE_INPUT: CoverLetterInput = {
@@ -24,6 +26,7 @@ const SAMPLE_INPUT: CoverLetterInput = {
     "During my internship at a fintech startup, I built weekly reporting dashboards that helped the team spot revenue trends faster.",
   whyCompany: "your focus on making data accessible to non-technical teams",
   tone: "formal",
+  language: "en",
 };
 
 function Field({
@@ -58,6 +61,8 @@ export function CoverLetter() {
   const [draftFromGenerator, setDraftFromGenerator] = useState(false);
   const [variantIndex, setVariantIndex] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<"docx" | "pdf" | "png" | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   function handleUseTemplate(body: string) {
     setDraft(body);
@@ -122,18 +127,42 @@ export function CoverLetter() {
     }
   }
 
+  function deriveFilenameBase(): string {
+    // input.fullName only reflects the manual "build from scratch" form —
+    // drafts loaded from a template or the generate-from-data flow don't
+    // touch `input`, so fall back to the last non-empty line of the draft
+    // itself, which is where the signature name typically lands.
+    const source = input.fullName.trim() || draft?.trim().split("\n").filter(Boolean).pop() || "cover-letter";
+    return source.trim().replace(/\s+/g, "-").toLowerCase().slice(0, 60) || "cover-letter";
+  }
+
   function handleDownload() {
     if (!draft) return;
     const blob = new Blob([draft], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    const safeName = (input.fullName || "cover-letter").trim().replace(/\s+/g, "-").toLowerCase();
-    a.download = `${safeName}-cover-letter.txt`;
+    a.download = `${deriveFilenameBase()}-cover-letter.txt`;
     document.body.appendChild(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function handleDownloadFormat(format: "docx" | "pdf" | "png") {
+    if (!draft) return;
+    setExportError(null);
+    setExportingFormat(format);
+    try {
+      const filename = `${deriveFilenameBase()}-cover-letter`;
+      if (format === "docx") await exportCoverLetterToDocx(draft, filename);
+      else if (format === "pdf") await exportCoverLetterToPdf(draft, filename);
+      else await exportCoverLetterToPng(draft, filename);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : `We couldn't create the .${format} file.`);
+    } finally {
+      setExportingFormat(null);
+    }
   }
 
   return (
@@ -280,6 +309,26 @@ export function CoverLetter() {
                 ))}
               </div>
             </fieldset>
+
+            <fieldset>
+              <legend className="text-sm font-semibold text-ink">Letter language</legend>
+              <div className="mt-1.5 flex gap-2">
+                {(["id", "en"] as CoverLetterLanguage[]).map((language) => (
+                  <button
+                    key={language}
+                    type="button"
+                    onClick={() => update("language", language)}
+                    className={`rounded-md border px-4 py-2 text-sm font-medium transition-colors ${
+                      input.language === language
+                        ? "border-blueprint-500 bg-blueprint-50 text-blueprint-600"
+                        : "border-surface-border text-ink-soft hover:border-blueprint-400"
+                    }`}
+                  >
+                    {language === "id" ? "Bahasa Indonesia" : "English"}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
           </div>
 
           {formError && (
@@ -344,12 +393,43 @@ export function CoverLetter() {
                 This is a starting point, not a finished letter — read it over, adjust the wording,
                 and make sure every detail is accurate before you send it.
               </p>
+
+              {exportError && (
+                <p role="alert" className="mt-3 text-sm font-medium text-warn">
+                  {exportError}
+                </p>
+              )}
+
               <div className="mt-4 flex flex-wrap gap-3">
                 <button type="button" onClick={handleCopy} className="btn-primary">
                   {copied ? "Copied!" : "Copy to clipboard"}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFormat("docx")}
+                  disabled={exportingFormat !== null}
+                  className="btn-secondary"
+                >
+                  {exportingFormat === "docx" ? "Preparing…" : "Download .docx"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFormat("pdf")}
+                  disabled={exportingFormat !== null}
+                  className="btn-secondary"
+                >
+                  {exportingFormat === "pdf" ? "Preparing…" : "Download .pdf"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDownloadFormat("png")}
+                  disabled={exportingFormat !== null}
+                  className="btn-secondary"
+                >
+                  {exportingFormat === "png" ? "Preparing…" : "Download .png"}
+                </button>
                 <button type="button" onClick={handleDownload} className="btn-secondary">
-                  Download as .txt
+                  Download .txt
                 </button>
               </div>
             </div>

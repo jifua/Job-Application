@@ -5,6 +5,7 @@ import {
   type CoverLetterTemplate,
 } from "../data/coverLetterTemplates";
 import { Badge } from "./Badge";
+import { CoverLetterGenerateFromData } from "./CoverLetterGenerateFromData";
 
 interface CoverLetterTemplatesProps {
   onUseTemplate: (body: string) => void;
@@ -28,11 +29,34 @@ export function CoverLetterTemplates({ onUseTemplate }: CoverLetterTemplatesProp
   const [activeCategory, setActiveCategory] = useState<CoverLetterTemplate["category"] | "all">("all");
   const [selected, setSelected] = useState<CoverLetterTemplate | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const [generateMode, setGenerateMode] = useState(false);
 
   const visibleTemplates =
     activeCategory === "all"
       ? COVER_LETTER_TEMPLATES
       : COVER_LETTER_TEMPLATES.filter((t) => t.category === activeCategory);
+
+  if (selected && generateMode) {
+    return (
+      <div className="flex flex-col gap-4">
+        <button
+          type="button"
+          onClick={() => setGenerateMode(false)}
+          className="text-sm font-medium text-blueprint-600 hover:underline"
+        >
+          ← Kembali ke pratinjau template
+        </button>
+        <CoverLetterGenerateFromData
+          template={selected}
+          onGenerated={(letter) => {
+            onUseTemplate(letter);
+            setGenerateMode(false);
+            setSelected(null);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (selected) {
     return (
@@ -74,8 +98,11 @@ export function CoverLetterTemplates({ onUseTemplate }: CoverLetterTemplatesProp
         </p>
 
         <div className="mt-4 flex flex-wrap gap-3">
-          <button type="button" onClick={() => onUseTemplate(selected.body)} className="btn-primary">
+          <button type="button" onClick={() => onUseTemplate(selected.body)} className="btn-secondary">
             Gunakan sebagai draf awal
+          </button>
+          <button type="button" onClick={() => setGenerateMode(true)} className="btn-primary">
+            Generate dari CV & lowongan
           </button>
           <button type="button" onClick={() => setSelected(null)} className="btn-secondary">
             Pilih template lain
